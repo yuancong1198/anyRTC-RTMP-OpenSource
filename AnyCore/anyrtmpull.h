@@ -30,6 +30,7 @@ enum RTMPLAYER_STATUS
 	RS_PLY_Closed		// 播放停止
 };
 
+//解复用数据
 typedef struct DemuxData
 {
 	DemuxData(int size) : _data(NULL), _data_len(0), _data_size(size){
@@ -48,10 +49,11 @@ typedef struct DemuxData
 	}
 
 	char*_data;
-	int _data_len;
-	int _data_size;
+	int _data_len;  //数据已占长度
+	int _data_size; //内存所在数据长度
 }DemuxData;
 
+//rtmp拉流回调函数基类
 class AnyRtmpPullCallback
 {
 public:
