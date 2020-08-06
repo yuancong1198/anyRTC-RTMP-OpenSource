@@ -25,11 +25,11 @@
 namespace rtc {
 
 #if defined(WEBRTC_WIN)
-
+//
 Event::Event(bool manual_reset, bool initially_signaled) {
   event_handle_ = ::CreateEvent(NULL,                 // Security attributes.
-                                manual_reset,
-                                initially_signaled,
+                                manual_reset,//如果是TRUE，那么必须用ResetEvent函数来手工将事件的状态复原到无信号状态。如果设置为FALSE，当一个线程等待到事件信号后系统会自动将事件状态复原为无信号状态。
+                                initially_signaled,//指定事件对象的初始状态。如果为TRUE，初始状态为有信号状态；否则为无信号状态。
                                 NULL);                // Name.
   RTC_CHECK(event_handle_);
 }
@@ -38,14 +38,17 @@ Event::~Event() {
   CloseHandle(event_handle_);
 }
 
+/*
+    SetEvent/ResetEvent分别将EVENT置为这两种状态分别是发信号与不发信号
+*/
 void Event::Set() {
-  SetEvent(event_handle_);
+  SetEvent(event_handle_);//设置事件的状态为有标记，释放任意等待线程。如果事件是手工的，此事件将保持有标记直到调用ResetEvent
 }
 
 void Event::Reset() {
   ResetEvent(event_handle_);
 }
-
+//WaitForSingleObject()等待，直到参数所指定的OBJECT成为发信号状态时才返回，OBJECT可以是EVENT，也可以是其它内核对象。
 bool Event::Wait(int milliseconds) {
   DWORD ms = (milliseconds == kForever) ? INFINITE : milliseconds;
   return (WaitForSingleObject(event_handle_, ms) == WAIT_OBJECT_0);

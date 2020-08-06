@@ -21,6 +21,7 @@ namespace rtc {
 // significantly brought to life.
 // This is a stripped down version of:
 // https://code.google.com/p/chromium/codesearch#chromium/src/base/location.h
+//代表了消息的来源，来源于那个方法、哪个文件哪一行
 class Location {
  public:
   // Constructor should be called with a long-lived char*, such as __FILE__.

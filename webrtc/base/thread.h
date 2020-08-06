@@ -96,8 +96,11 @@ class Runnable {
 class LOCKABLE Thread : public MessageQueue {
  public:
   // Create a new Thread and optionally assign it to the passed SocketServer.
-  // 已弃用的默认构造函数，不要使用，应该使用下面的静态方法进行创建类实例
-  // 建议在开发过程中使用 CreateWithSocketServer 创建
+/*
+    默认构造函数Thread()被标注为DEPRECATED，原因是其对外隐藏了一个事实，即Thread对象是否与一个SocketServer对象绑定。
+    实际上该默认构造会创建一个SocketServer对象绑定到Thread对象，而大多数的应用场景下Thread对象不需要SocketServer。
+    因此，源码的注释中告知使用Create*的两个静态方法来创建Thread对象。
+*/
   Thread();
   explicit Thread(SocketServer* ss);
   explicit Thread(std::unique_ptr<SocketServer> ss);
@@ -110,8 +113,10 @@ class LOCKABLE Thread : public MessageQueue {
   // 这样做是为了避免 Thread::PreRun 调用 Run() 方法时，析构函数对虚函数表的修改
   ~Thread() override;
 
-  // rtc::Thread 提供的创建类实例的静态方法
+  //两个静态Create*方法来创建Thread对象
+  //一个传入PhysicalSocketServer对象，持有平台相关的Socket对象，能处理网络IO。
   static std::unique_ptr<Thread> CreateWithSocketServer();
+  //一个传入的是NullSocketServer对象，该对象不持有真正的Socket，不处理网络IO；
   static std::unique_ptr<Thread> Create();
 
   // 返回当前线程的实例指针
@@ -159,14 +164,14 @@ class LOCKABLE Thread : public MessageQueue {
   // function which will exit the base MessageQueue without terminating the
   // underlying OS thread.
   // 通知线程结束，并阻塞等待；如果调用继承的 Quit 方法，则只会结束消息队列循环，而不会结束线程
-  // 注意：一定不要在线程内部调用此方法   
+  // 注意：停止一个线程，可以通过调用线程的Thread.Stop()方法来实施，但千万不能在当前线程上调用该方法来终止自己。
   virtual void Stop();
 
   // By default, Thread::Run() calls ProcessMessages(kForever).  To do other
   // work, override Run().  To receive and dispatch messages, call
   // ProcessMessages occasionally.
   // 默认情况下，将调用 ProcessMessages(kForever),如果要做其它工作，则需要重写 Run()
-  // 如果需要接受或者处理消息，则需要自己主动调用 ProcessMessages 方法
+  //如果用户不运行自己的代码干自己的活，那么默认的方式就是启动了一个消息循环不停地在此执行。
   virtual void Run();
   // 向消息队列发消息，并阻塞等待其执行完毕
   virtual void Send(const Location& posted_from,
@@ -255,6 +260,7 @@ class LOCKABLE Thread : public MessageQueue {
   void SafeWrapCurrent();
 
   // Blocks the calling thread until this thread has terminated.
+  //// 此处作用是阻塞地等待目标线程终止
   void Join();
 
   static void AssertBlockingIsAllowedOnCurrentThread();
@@ -301,7 +307,7 @@ class LOCKABLE Thread : public MessageQueue {
 #endif
 
   bool owned_;
-  bool blocking_calls_allowed_;  // By default set to |true|.
+  bool blocking_calls_allowed_;  //控制着在该线程是否可以运行阻塞，等待操作 By default set to |true|.
 
   friend class ThreadManager;
 

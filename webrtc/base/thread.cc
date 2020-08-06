@@ -152,7 +152,7 @@ Thread::Thread(SocketServer* ss)
   SetName("Thread", this);  // default name
   DoInit();
 }
-
+//由于Thread继承于MessageQueue对象，因此首先构造MQ父对象，调用MQ的构造函数，传入SocketServer对象指针以及布尔值false。
 Thread::Thread(std::unique_ptr<SocketServer> ss)
     : MessageQueue(std::move(ss), false),
       running_(true, false),
@@ -162,7 +162,7 @@ Thread::Thread(std::unique_ptr<SocketServer> ss)
 #endif
       owned_(true),
       blocking_calls_allowed_(true) {
-  SetName("Thread", this);  // default name
+  SetName("Thread", this);  //调用SetName()方法为Thread对象命名
   DoInit();
 }
 
@@ -213,17 +213,23 @@ bool Thread::SetName(const std::string& name, const void* obj) {
 }
 
 bool Thread::Start(Runnable* runnable) {
+    // 线程对象Thread不是Wrap而来
   ASSERT(owned_);
   if (!owned_) return false;
+  // 测试环境下的断言，当前线程必须处于非运行状态，否则触发Fatal Error
   ASSERT(!running());
+  // 如果线程处于运行状态则Start返回false
   if (running()) return false;
 
+  // 复位消息循环stop标志位
   Restart();  // reset fStop_ if the thread is being restarted
 
   // Make sure that ThreadManager is created on the main thread before
   // we start a new thread.
+  // 确保ThreadManager在主线程中构建
   ThreadManager::Instance();
 
+  // 赋值结构体ThreadInit
   ThreadInit* init = new ThreadInit;
   init->thread = this;
   init->runnable = runnable;
@@ -273,7 +279,9 @@ void Thread::SafeWrapCurrent() {
 
 void Thread::Join() {
   if (running()) {
+    // 断言是否是在当前线程调用自己的Join造成自己等待自己
     ASSERT(!IsCurrent());
+    // 判断当前线程是否具有阻塞权限，如无，则打印警告，但是并没有进行断言
     if (Current() && !Current()->blocking_calls_allowed_) {
       LOG(LS_WARNING) << "Waiting for the thread to join, "
                       << "but blocking calls have been disallowed";
@@ -281,7 +289,9 @@ void Thread::Join() {
 
 #if defined(WEBRTC_WIN)
     ASSERT(thread_ != NULL);
+    // 等待目标线程终止
     WaitForSingleObject(thread_, INFINITE);
+    // 关闭线程句柄
     CloseHandle(thread_);
     thread_ = NULL;
     thread_id_ = 0;
@@ -289,6 +299,7 @@ void Thread::Join() {
     void *pv;
     pthread_join(thread_, &pv);
 #endif
+    // 成员复位
     running_.Reset();
   }
 }
@@ -307,10 +318,13 @@ void Thread::AssertBlockingIsAllowedOnCurrentThread() {
   ASSERT(!current || current->blocking_calls_allowed_);
 #endif
 }
-
+//本函数是本文最重要的地方，涉及到了ThreadManager管理Thread类的秘密，涉及到了用户代码如何在新线程上被执行，线程内部的消息循环是如何被运行起来的。
 void* Thread::PreRun(void* pv) {
+   // 如前文所述，ThreadInit作为入参传给PreRun方法。
   ThreadInit* init = static_cast<ThreadInit*>(pv);
+  // 将新创建的Thread对象纳入管理，与当前线程进行绑定。
   ThreadManager::Instance()->SetCurrentThread(init->thread);
+  // 为线程设置名称，该方法会调用平台相关的API给线程内核结构体赋值上该线程的名称。
   rtc::SetCurrentThreadName(init->thread->name_.c_str());
 #if __has_feature(objc_arc)
   @autoreleasepool
@@ -319,11 +333,14 @@ void* Thread::PreRun(void* pv) {
   ScopedAutoreleasePool pool;
 #endif
   {
+    // 如果用户需要执行自己的代码，那么就会继承Runnable并实现Run方法，此时，正是执行
+    // 用户代码的时刻；否则，将执行Thread的默认Run方法。
     if (init->runnable) {
       init->runnable->Run(init->thread);
     } else {
       init->thread->Run();
     }
+    //// 释放ThreadInit对象
     delete init;
     return NULL;
   }

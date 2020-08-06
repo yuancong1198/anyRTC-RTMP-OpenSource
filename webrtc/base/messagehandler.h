@@ -21,7 +21,7 @@ namespace rtc {
 struct Message;
 
 // Messages get dispatched to a MessageHandler
-
+//主要使用该成员MessageHandler的OnMessage(Message* msg)来对消息进行处理；
 class MessageHandler {
  public:
   virtual ~MessageHandler();
